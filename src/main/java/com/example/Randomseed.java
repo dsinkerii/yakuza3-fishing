@@ -3,6 +3,7 @@ package com.example;
 import com.example.mixins.FishingBobberEntityMixin;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
@@ -84,14 +85,14 @@ public class Randomseed implements ModInitializer {
 		Registry.register(Registries.SOUND_EVENT, LOST_ID, LOST_EVENT);
 		UseItemCallback.EVENT.register(this::onPlayerHookFish);
 
-		ServerTickEvents.START_SERVER_TICK.register(server -> {
+		ClientTickEvents.START_CLIENT_TICK.register(server -> {
 			MinecraftClient mc = MinecraftClient.getInstance();
 			var world = mc.world;
 			worldTick++;
 
 			if (mc.player != null && world != null) {
 				if (!isSoundPlaying) {
-					soundInstance = new CustomTickableSoundInstance(MY_SOUND_EVENT, worldTick);
+					soundInstance = new CustomTickableSoundInstance(MY_SOUND_EVENT, worldTick, SoundCategory.MUSIC, mc.player.getBlockPos());
 					mc.getSoundManager().play(soundInstance);
 					isSoundPlaying = true;
 				} else if (soundInstance != null) {
@@ -114,7 +115,7 @@ public class Randomseed implements ModInitializer {
 					if(IsCaught){
 						finishedBait = true;
 						if(!IsFishing){ // WON!!
-							CustomTickableSoundInstance wonInstance = new CustomTickableSoundInstance(WON_EVENT, worldTick);
+							CustomTickableSoundInstance wonInstance = new CustomTickableSoundInstance(WON_EVENT, worldTick, SoundCategory.PLAYERS, mc.player.getBlockPos());
 							mc.getSoundManager().play(wonInstance);
 							new Thread(() -> {
 								RawcongratsVal = 1;
@@ -126,7 +127,7 @@ public class Randomseed implements ModInitializer {
                                 RawcongratsVal = 0;
                             }).start();
 						}else{ // lost... haha
-							CustomTickableSoundInstance lostInstance = new CustomTickableSoundInstance(LOST_EVENT, worldTick);
+							CustomTickableSoundInstance lostInstance = new CustomTickableSoundInstance(LOST_EVENT, worldTick, SoundCategory.PLAYERS, mc.player.getBlockPos());
 							mc.getSoundManager().play(lostInstance);
 							new Thread(() -> {
 								RawlostVal = 1;
@@ -150,7 +151,7 @@ public class Randomseed implements ModInitializer {
 			congratsVal = congratsVal * (1 - 0.15F) + RawcongratsVal * 0.15F;
 
 			if(FirstCaught){
-				CustomTickableSoundInstance caughtInstance = new CustomTickableSoundInstance(CAUGHT_EVENT, worldTick);
+				CustomTickableSoundInstance caughtInstance = new CustomTickableSoundInstance(CAUGHT_EVENT, worldTick, SoundCategory.PLAYERS, mc.player.getBlockPos());
 				mc.getSoundManager().play(caughtInstance);
 			}
 			if(soundInstance != null)
@@ -215,8 +216,8 @@ public class Randomseed implements ModInitializer {
 
 		private int startTick;
 
-		public CustomTickableSoundInstance(SoundEvent sound, int startTick) {
-            super(sound, SoundCategory.MUSIC, 1, 1, new Random() {
+		public CustomTickableSoundInstance(SoundEvent sound, int startTick, SoundCategory category, BlockPos position) {
+            super(sound, category, 1, 1, new Random() {
 				@Override
 				public Random split() {
 					return null;
@@ -266,7 +267,7 @@ public class Randomseed implements ModInitializer {
 				public double nextGaussian() {
 					return 0;
 				}
-			}, new BlockPos(0,0,0));
+			}, position);
             this.startTick = startTick;
 		}
 
