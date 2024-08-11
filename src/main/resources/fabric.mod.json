@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "yakuza3-fish",
+	"version": "${version}",
+	"name": "yakuza3-fish",
+	"description": "This mod was originally made for random seed generation, but i was too lazy to change majority of the names and allat, so i repurposed this old project to play yakuza 3 music when you fish.",
+	"authors": [
+		"dsinkerii"
+	],
+	"contact": {
+		"homepage": "https://github.com/dsinkerii",
+		"sources": "https://github.com/dsinkerii"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/yakuza3-fish/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.example.Randomseed"
+		],
+		"fabric-datagen": [
+			"com.example.RandomseedDataGenerator"
+		]
+	},
+	"accessWidener": "yakuza3-fish.accesswidener",
+	"mixins": [
+		"yakuza3-fish.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.15.11",
+		"minecraft": "~1.21",
+		"java": ">=21",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"another-mod": "*"
+	}
+}

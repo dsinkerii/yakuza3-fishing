@@ -1,0 +1,22 @@
+{
+  "background_music": {
+    "sounds": [
+      "yakuza3-fish:background_music"
+    ]
+  },
+  "fishcaught": {
+    "sounds": [
+      "yakuza3-fish:fishcaught"
+    ]
+  },
+  "yougotit": {
+    "sounds": [
+      "yakuza3-fish:yougotit"
+    ]
+  },
+  "yousomehowlost": {
+    "sounds": [
+      "yakuza3-fish:yousomehowlost"
+    ]
+  }
+}
