@@ -52,11 +52,11 @@ public class Randomseed implements ModInitializer {
 	public static SoundEvent CAUGHT_EVENT = SoundEvent.of(CAUGHT_ID);
 	public static SoundEvent WON_EVENT = SoundEvent.of(WON_ID);
 	public static SoundEvent LOST_EVENT = SoundEvent.of(LOST_ID);
+	private boolean isUsingFishingRod = false;
 
 	private boolean isSoundPlaying = false;
 	private int worldTick = 0;
 	private CustomTickableSoundInstance soundInstance;
-	boolean isFishing = false;
 	int fishingTicks = 0;
 	float rawVolume = 0;
 	float interpolatedVolume = 0;
@@ -71,93 +71,116 @@ public class Randomseed implements ModInitializer {
 	float RawcongratsVal = 0;
 	float lostVal = 0;
 	float RawlostVal = 0;
+	private int lastFishingRodUseTick = -1;
+	private static final int FISHING_ROD_USE_THRESHOLD = 7;
+
 
 	double easeInOutExpo(double x) {
 		return x == 0 ? 0 : x == 1 ? 1 : x < 0.5 ? Math.pow(2, 20 * x - 10) / 2 : (2 - Math.pow(2, -20 * x + 10)) / 2;
 	}
 
 	@Override
-	public void onInitialize() {
-		HudRenderCallback.EVENT.register(this::renderGui);
-		Registry.register(Registries.SOUND_EVENT, MUSIC_ID, MY_SOUND_EVENT);
-		Registry.register(Registries.SOUND_EVENT, CAUGHT_ID, CAUGHT_EVENT);
-		Registry.register(Registries.SOUND_EVENT, WON_ID, WON_EVENT);
-		Registry.register(Registries.SOUND_EVENT, LOST_ID, LOST_EVENT);
-		UseItemCallback.EVENT.register(this::onPlayerHookFish);
+    public void onInitialize() {
+        HudRenderCallback.EVENT.register(this::renderGui);
+        Registry.register(Registries.SOUND_EVENT, MUSIC_ID, MY_SOUND_EVENT);
+        Registry.register(Registries.SOUND_EVENT, CAUGHT_ID, CAUGHT_EVENT);
+        Registry.register(Registries.SOUND_EVENT, WON_ID, WON_EVENT);
+        Registry.register(Registries.SOUND_EVENT, LOST_ID, LOST_EVENT);
 
-		ClientTickEvents.START_CLIENT_TICK.register(server -> {
-			MinecraftClient mc = MinecraftClient.getInstance();
-			var world = mc.world;
-			worldTick++;
+        ClientTickEvents.START_CLIENT_TICK.register(client -> {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            worldTick++;
 
-			if (mc.player != null && world != null) {
-				if (!isSoundPlaying) {
-					soundInstance = new CustomTickableSoundInstance(MY_SOUND_EVENT, worldTick, SoundCategory.MUSIC, mc.player.getBlockPos());
-					mc.getSoundManager().play(soundInstance);
-					isSoundPlaying = true;
-				} else if (soundInstance != null) {
-					soundInstance.updateVolume(1);
+            if (mc.player != null && mc.world != null) {
+                if (!isSoundPlaying) {
+                    soundInstance = new CustomTickableSoundInstance(MY_SOUND_EVENT, worldTick, SoundCategory.RECORDS, mc.player.getBlockPos());
+                    mc.getSoundManager().play(soundInstance);
+                    isSoundPlaying = true;
+                } else if (soundInstance != null) {
+                    soundInstance.updateVolume(1);
+                }
+				if (mc.player != null) {
+					boolean isHoldingFishingRod = mc.player.getMainHandStack().getItem() instanceof FishingRodItem ||
+							mc.player.getOffHandStack().getItem() instanceof FishingRodItem;
+					boolean isRightMouseButtonDown = mc.options.useKey.isPressed();
+					isUsingFishingRod = isHoldingFishingRod && isRightMouseButtonDown;
+					if(isUsingFishingRod)
+						lastFishingRodUseTick = worldTick;
 				}
-			}
-			if(mc.player != null) {
-				FishingBobberEntity bobber = mc.player.fishHook;
-				if (bobber != null && ((FishingBobberEntityAccessor) bobber).getCaughtFish()) {
-					rawVolume = 1;
-					if(!FirstCaught && !IsCaught){
-						FirstCaught = true;
-						FishStartTick = worldTick;
-					}else{
-						FirstCaught = false;
-					}
-					IsCaught = true;
-				}else{
-					rawVolume = 0;
+
+                FishingBobberEntity bobber = mc.player.fishHook;
+                if (bobber != null && ((FishingBobberEntityAccessor) bobber).getCaughtFish()) {
+                    rawVolume = 1;
+                    if(!FirstCaught && !IsCaught){
+                        FirstCaught = true;
+                        FishStartTick = worldTick;
+                    } else {
+                        FirstCaught = false;
+                    }
+                    IsCaught = true;
+                } else {
+                    rawVolume = 0;
 					if(IsCaught){
 						finishedBait = true;
-						if(!IsFishing){ // WON!!
-							CustomTickableSoundInstance wonInstance = new CustomTickableSoundInstance(WON_EVENT, worldTick, SoundCategory.PLAYERS, mc.player.getBlockPos());
-							mc.getSoundManager().play(wonInstance);
-							new Thread(() -> {
-								RawcongratsVal = 1;
-                                try {
-                                    Thread.sleep(1500);
-                                } catch (InterruptedException e) {
-                                    throw new RuntimeException(e);
-                                }
-                                RawcongratsVal = 0;
-                            }).start();
-						}else{ // lost... haha
-							CustomTickableSoundInstance lostInstance = new CustomTickableSoundInstance(LOST_EVENT, worldTick, SoundCategory.PLAYERS, mc.player.getBlockPos());
-							mc.getSoundManager().play(lostInstance);
-							new Thread(() -> {
-								RawlostVal = 1;
-								try {
-									Thread.sleep(1500);
-								} catch (InterruptedException e) {
-									throw new RuntimeException(e);
-								}
-								RawlostVal = 0;
-							}).start();
+						System.out.println((worldTick - lastFishingRodUseTick));
+						if((worldTick - lastFishingRodUseTick) <= FISHING_ROD_USE_THRESHOLD) { // WON!!
+							playWonSound(mc);
+						} else { // lost... haha
+							playLostSound(mc);
 						}
-					}else{
+					} else {
 						finishedBait = false;
 					}
-					IsCaught = false;
-					FirstCaught = false;
-				}
-			}
-			interpolatedVolume = interpolatedVolume * (1 - 0.15F) + rawVolume * 0.15F;
-			lostVal = lostVal * (1 - 0.15F) + RawlostVal * 0.15F;
-			congratsVal = congratsVal * (1 - 0.15F) + RawcongratsVal * 0.15F;
+                    IsCaught = false;
+                    FirstCaught = false;
+                }
 
-			if(FirstCaught){
-				CustomTickableSoundInstance caughtInstance = new CustomTickableSoundInstance(CAUGHT_EVENT, worldTick, SoundCategory.PLAYERS, mc.player.getBlockPos());
-				mc.getSoundManager().play(caughtInstance);
-			}
-			if(soundInstance != null)
-				soundInstance.updateVolume(interpolatedVolume);
-		});
-	}
+                interpolatedVolume = interpolatedVolume * (1 - 0.125F) + rawVolume * 0.125F;
+                lostVal = lostVal * (1 - 0.15F) + RawlostVal * 0.15F;
+                congratsVal = congratsVal * (1 - 0.15F) + RawcongratsVal * 0.15F;
+                fishingTicks++;
+                if(fishingTicks >= 78*20){
+                    isSoundPlaying = false;
+                    fishingTicks = 0;
+                }
+
+                if(FirstCaught){
+                    CustomTickableSoundInstance caughtInstance = new CustomTickableSoundInstance(CAUGHT_EVENT, worldTick, SoundCategory.PLAYERS, mc.player.getBlockPos());
+                    mc.getSoundManager().play(caughtInstance);
+                }
+                if(soundInstance != null)
+                    soundInstance.updateVolume(interpolatedVolume);
+            }
+        });
+    }
+
+    private void playWonSound(MinecraftClient mc) {
+        CustomTickableSoundInstance wonInstance = new CustomTickableSoundInstance(WON_EVENT, worldTick, SoundCategory.PLAYERS, mc.player.getBlockPos());
+        mc.getSoundManager().play(wonInstance);
+        new Thread(() -> {
+            RawcongratsVal = 1;
+            try {
+                Thread.sleep(1500);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            RawcongratsVal = 0;
+        }).start();
+    }
+
+    private void playLostSound(MinecraftClient mc) {
+        CustomTickableSoundInstance lostInstance = new CustomTickableSoundInstance(LOST_EVENT, worldTick, SoundCategory.PLAYERS, mc.player.getBlockPos());
+        mc.getSoundManager().play(lostInstance);
+        new Thread(() -> {
+            RawlostVal = 1;
+            try {
+                Thread.sleep(1500);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            RawlostVal = 0;
+        }).start();
+    }
 	public static void drawTextureWithAlpha(DrawContext drawContext, Identifier textureId, int x, int y, int u, int v, int width, int height, int textureWidth, int textureHeight, float alpha) {
 		// Ensure alpha is between 0 and 1
 		alpha = Math.max(0, Math.min(1, alpha));
@@ -202,13 +225,6 @@ public class Randomseed implements ModInitializer {
 			int yJava = mc.getWindow().getScaledHeight()-89-(int)(lostVal*20);
 			drawTextureWithAlpha(drawContext, MISS, xJava,yJava, 0, 0, 627/2, 89/2, 627/2, 89/2, lostVal);
 		}
-	}
-
-	private TypedActionResult<ItemStack> onPlayerHookFish(PlayerEntity playerEntity, World world, Hand hand) {
-		if (!world.isClient && playerEntity.getStackInHand(hand).getItem() == Items.FISHING_ROD) {
-			IsFishing = !IsFishing;
-		}
-		return TypedActionResult.pass(null);
 	}
 
 
